@@ -41,7 +41,6 @@ func (s Scope) String() string {
 	}
 }
 
-
 const (
 	FLAG_ONLINK    NextHopFlag = unix.RTNH_F_ONLINK
 	FLAG_PERVASIVE NextHopFlag = unix.RTNH_F_PERVASIVE
@@ -1291,10 +1290,11 @@ func deserializeRoute(m []byte) (Route, error) {
 // RouteGetOptions contains a set of options to use with
 // RouteGetWithOptions
 type RouteGetOptions struct {
-	Iif     string
-	Oif     string
-	VrfName string
-	SrcAddr net.IP
+	Iif      string
+	IifIndex int
+	Oif      string
+	VrfName  string
+	SrcAddr  net.IP
 }
 
 // RouteGetWithOptions gets a route to a specific destination from the host system.
@@ -1347,14 +1347,21 @@ func (h *Handle) RouteGetWithOptions(destination net.IP, options *RouteGetOption
 			req.AddData(nl.NewRtAttr(unix.RTA_OIF, b))
 		}
 
+		iifIndex := 0
 		if len(options.Iif) > 0 {
 			link, err := LinkByName(options.Iif)
 			if err != nil {
 				return nil, err
 			}
 
+			iifIndex = link.Attrs().Index
+		} else if options.IifIndex > 0 {
+			iifIndex = options.IifIndex
+		}
+
+		if iifIndex > 0 {
 			b := make([]byte, 4)
-			native.PutUint32(b, uint32(link.Attrs().Index))
+			native.PutUint32(b, uint32(iifIndex))
 
 			req.AddData(nl.NewRtAttr(unix.RTA_IIF, b))
 		}
