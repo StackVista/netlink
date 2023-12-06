@@ -160,9 +160,17 @@ func ProcEventMonitor(ch chan<- ProcEvent, done <-chan struct{}, errorChan chan<
 				errorChan <- err
 				return
 			}
+
 			if from.Pid != nl.PidKernel {
-				errorChan <- fmt.Errorf("Wrong sender portid %d, expected %d", from.Pid, nl.PidKernel)
-				return
+				for _, m := range msgs {
+					e := parseNetlinkMessage(m)
+					if e != nil {
+						errorChan <- fmt.Errorf("Wrong sender portid %d, expected %d. Message: %v", from.Pid, nl.PidKernel, *e)
+					} else {
+						errorChan <- fmt.Errorf("Wrong sender portid %d, expected %d. Could not parse message", from.Pid, nl.PidKernel)
+					}
+				}
+				continue
 			}
 
 			for _, m := range msgs {
