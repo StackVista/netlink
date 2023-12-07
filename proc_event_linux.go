@@ -163,18 +163,18 @@ func ProcEventMonitor(ch chan<- ProcEvent, done <-chan struct{}, errorChan chan<
 
 			if from.Pid != nl.PidKernel {
 				for _, m := range msgs {
-					e := parseNetlinkMessage(m)
-					if e != nil {
-						errorChan <- fmt.Errorf("Wrong sender portid %d, expected %d. Message: %v", from.Pid, nl.PidKernel, *e)
+					e, err := parseNetlinkMessage(m)
+					if err == nil {
+						errorChan <- fmt.Errorf("wrong sender portid %d, expected %d. Message: %v", from.Pid, nl.PidKernel, *e)
 					} else {
-						errorChan <- fmt.Errorf("Wrong sender portid %d, expected %d. Could not parse message", from.Pid, nl.PidKernel)
+						errorChan <- fmt.Errorf("wrong sender portid %d, expected %d. Could not parse message: %w", from.Pid, nl.PidKernel, err)
 					}
 				}
 				continue
 			}
 
 			for _, m := range msgs {
-				e := parseNetlinkMessage(m)
+				e, _ := parseNetlinkMessage(m)
 				if e != nil {
 					ch <- *e
 				}
@@ -186,7 +186,7 @@ func ProcEventMonitor(ch chan<- ProcEvent, done <-chan struct{}, errorChan chan<
 	return nil
 }
 
-func parseNetlinkMessage(m syscall.NetlinkMessage) *ProcEvent {
+func parseNetlinkMessage(m syscall.NetlinkMessage) (*ProcEvent, error) {
 	if m.Header.Type == unix.NLMSG_DONE {
 		buf := bytes.NewBuffer(m.Data)
 		msg := &nl.CnMsg{}
@@ -201,25 +201,25 @@ func parseNetlinkMessage(m syscall.NetlinkMessage) *ProcEvent {
 			event := &ExitProcEvent{}
 			binary.Read(buf, nl.NativeEndian(), event)
 			pe.Msg = event
-			return pe
+			return pe, nil
 		case PROC_EVENT_FORK:
 			event := &ForkProcEvent{}
 			binary.Read(buf, nl.NativeEndian(), event)
 			pe.Msg = event
-			return pe
+			return pe, nil
 		case PROC_EVENT_EXEC:
 			event := &ExecProcEvent{}
 			binary.Read(buf, nl.NativeEndian(), event)
 			pe.Msg = event
-			return pe
+			return pe, nil
 		case PROC_EVENT_COMM:
 			event := &CommProcEvent{}
 			binary.Read(buf, nl.NativeEndian(), event)
 			pe.Msg = event
-			return pe
+			return pe, nil
 		}
-		return nil
+		return nil, fmt.Errorf("unknown 'What' type: %d for buffer of size %d", hdr.What, len(m.Data))
 	}
 
-	return nil
+	return nil, fmt.Errorf("unknown 'Header' type: %d for buffer of size %d", m.Header.Type, len(m.Data))
 }
