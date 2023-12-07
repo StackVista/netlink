@@ -3,7 +3,6 @@ package netlink
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"os"
 	"syscall"
 
@@ -162,19 +161,14 @@ func ProcEventMonitor(ch chan<- ProcEvent, done <-chan struct{}, errorChan chan<
 			}
 
 			if from.Pid != nl.PidKernel {
-				for _, m := range msgs {
-					e, err := parseNetlinkMessage(m)
-					if err == nil {
-						errorChan <- fmt.Errorf("wrong sender portid %d, expected %d. Message: %v", from.Pid, nl.PidKernel, *e)
-					} else {
-						errorChan <- fmt.Errorf("wrong sender portid %d, expected %d. Could not parse message: %w", from.Pid, nl.PidKernel, err)
-					}
-				}
+				// Because we are subscribed to a multicast group (group CN_IDX_PROC), message sent by other member of the group (typically registration
+				// messages), can and up here aswell. Those messages we ignore. Only messages that originated from the kernel are the ones we are interested in.
+				// The typical case this triggers, is when multiple instances of this ProcEventMonitor are running on the same machine.
 				continue
 			}
 
 			for _, m := range msgs {
-				e, _ := parseNetlinkMessage(m)
+				e := parseNetlinkMessage(m)
 				if e != nil {
 					ch <- *e
 				}
@@ -186,7 +180,7 @@ func ProcEventMonitor(ch chan<- ProcEvent, done <-chan struct{}, errorChan chan<
 	return nil
 }
 
-func parseNetlinkMessage(m syscall.NetlinkMessage) (*ProcEvent, error) {
+func parseNetlinkMessage(m syscall.NetlinkMessage) *ProcEvent {
 	if m.Header.Type == unix.NLMSG_DONE {
 		buf := bytes.NewBuffer(m.Data)
 		msg := &nl.CnMsg{}
@@ -201,25 +195,25 @@ func parseNetlinkMessage(m syscall.NetlinkMessage) (*ProcEvent, error) {
 			event := &ExitProcEvent{}
 			binary.Read(buf, nl.NativeEndian(), event)
 			pe.Msg = event
-			return pe, nil
+			return pe
 		case PROC_EVENT_FORK:
 			event := &ForkProcEvent{}
 			binary.Read(buf, nl.NativeEndian(), event)
 			pe.Msg = event
-			return pe, nil
+			return pe
 		case PROC_EVENT_EXEC:
 			event := &ExecProcEvent{}
 			binary.Read(buf, nl.NativeEndian(), event)
 			pe.Msg = event
-			return pe, nil
+			return pe
 		case PROC_EVENT_COMM:
 			event := &CommProcEvent{}
 			binary.Read(buf, nl.NativeEndian(), event)
 			pe.Msg = event
-			return pe, nil
+			return pe
 		}
-		return nil, fmt.Errorf("unknown 'What' type: %d for buffer of size %d. syscall: %v Msg %v, Hdr: %v", hdr.What, len(m.Data), m, msg, hdr)
+		return nil
 	}
 
-	return nil, fmt.Errorf("unknown 'Header' type: %d for buffer of size %d", m.Header.Type, len(m.Data))
+	return nil
 }
