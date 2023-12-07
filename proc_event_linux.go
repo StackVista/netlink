@@ -164,6 +164,7 @@ func ProcEventMonitor(ch chan<- ProcEvent, done <-chan struct{}, errorChan chan<
 				// Because we are subscribed to a multicast group (group CN_IDX_PROC), messages sent by other member of the group (typically registration
 				// messages), can end up here aswell. Those messages we ignore. Only messages that originated from the kernel are the ones we are interested in.
 				// The typical case this triggers, is when multiple instances of this ProcEventMonitor are running on the same machine.
+				// Bugticket on original library: https://github.com/vishvananda/netlink/issues/786
 				continue
 			}
 
