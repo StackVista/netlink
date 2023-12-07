@@ -218,7 +218,7 @@ func parseNetlinkMessage(m syscall.NetlinkMessage) (*ProcEvent, error) {
 			pe.Msg = event
 			return pe, nil
 		}
-		return nil, fmt.Errorf("unknown 'What' type: %d for buffer of size %d", hdr.What, len(m.Data))
+		return nil, fmt.Errorf("unknown 'What' type: %d for buffer of size %d. syscall: %v Msg %v, Hdr: %v", hdr.What, len(m.Data), m, msg, hdr)
 	}
 
 	return nil, fmt.Errorf("unknown 'Header' type: %d for buffer of size %d", m.Header.Type, len(m.Data))
